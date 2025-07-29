@@ -1,2 +1,128 @@
 Key scripts for the manuscript "A real-world pharmacovigilance study of adverse events associated with esketamine: disproportionality analysis and detection of potential drug-drug interaction signals"
 
+demo_ordered = demo_temp[order(-demo_temp$caseid, -demo_temp$fda_dt, demo_temp$primaryid), ]
+head(demo_ordered)
+demo_nodup = demo_ordered[!duplicated(demo_ordered$caseid), ] 
+
+delete = read.table("deleted.txt", header=F)
+'%notin%' <- Negate('%in%')
+
+demo <- demo_nodup[demo_nodup$caseid %notin% delete$V1, ]
+
+library(dplyr)
+demo_react = demo %>% inner_join(reac, by=c("primaryid", "caseid"), relationship ="many-to-many") 
+uniqueid = unique(demo_react$caseid)
+length(uniqueid) 
+demo_drug = demo %>% inner_join(drug, by=c("primaryid", "caseid"), relationship ="many-to-many")
+demo_drug_reac = demo_drug %>% inner_join(reac, by=c("primaryid", "caseid"), relationship ="many-to-many") 
+length(unique(demo_drug_reac$caseid))
+demo_drug_reac_indi = demo_drug_reac %>% left_join(indi, by=c("primaryid", "caseid", "drug_seq"), relationship ="many-to-many")
+demo_drug_reac_indi_reduced = demo_drug_reac_indi[,c("primaryid","caseid","pt","caseversion","event_dt","init_fda_dt","fda_dt","age","age_cod","age_grp","sex","wt","wt_cod","occp_cod","reporter_country","occr_country","drug_seq","role_cod","drugname","prod_ai","route","cum_dose_chr","cum_dose_unit","dechal","rechal","dose_amt","dose_unit","dose_form","dose_freq","indi_pt")]
+data_reduced_sorted  = demo_drug_reac_indi_reduced[order(-demo_drug_reac_indi_reduced$fda_dt,demo_drug_reac_indi_reduced$primaryid),]
+standardized_names = read.csv2("drugnames_standardized_v2.csv", header=T)
+standardized_names$drugname = toupper(standardized_names$drugname)
+standardized_names$Substance = toupper(standardized_names$Substance)
+data_reduced_sorted_2 = join(data_reduced_sorted, standardized_names, type="left", by="drugname")
+
+data_unique = data_unique_prodai %>% distinct(age,sex,pt,drugname,event_dt,occr_country,indi_pt,  .keep_all = TRUE)
+data_unique2 = demo_react[demo_react$primaryid %in% list_primary_id_unique, ]
+demo_react_unique = data_unique_2 %>% distinct(caseid, pt, .keep_all = TRUE)
+esketamine_temp = data_unique[data_unique$prod_ai %in% c("ESKETAMINE","ESKETAMINE HYDROCHLORIDE") | (data_unique$prod_ai %notin% c("ESKETAMINE","ESKETAMINE HYDROCHLORIDE") & data_unique$Substance %in% c("ESKETAMINE")) | (data_unique$prod_ai %in% c("") & data_unique$Substance %in% c("ESKETAMINE")), ] 
+esketamine = esketamine_temp %>% distinct(age,sex,pt,event_dt,occr_country,indi_pt,  .keep_all = TRUE)
+
+dataset = esketamine
+dataset = dataset[dataset$role_cod == "PS" | dataset$role_cod == "SS", ]
+
+list_primary_id = unique(dataset$primaryid)
+data = vector()
+list_pt= vector()
+data_recomposed = vector()
+for (i in 1:length(list_primary_id)) {
+  data = dataset[dataset$primaryid == list_primary_id[i], ]
+  if (length(data$pt) != length(unique(data$pt))) {
+    list_pt = unique(data$pt)
+    for(j in 1:length(list_pt)) {
+      temp = data[data$pt == list_pt[j], ] 
+      if(length(temp$role_cod) == length(unique(temp$role_cod)) ) {
+        pos = which(temp$role_cod == "PS")
+        if (length(pos) > 0) {
+          temp = temp[pos[1], ]
+        }
+      } else {
+        temp = temp[1, ]
+      }
+      
+      data_recomposed = rbind(data_recomposed, temp)  
+    }
+    
+  } else {
+    data_recomposed = rbind(data_recomposed, data)
+  }
+  
+}
+
+data_recomposed = data_recomposed %>% distinct(age,sex,pt,event_dt,occr_country,indi_pt,  .keep_all = TRUE)
+ 
+data_recomposed = data_recomposed[data_recomposed$indi_pt %notin% c("New daily persistent headache","Status epilepticus","Sedation","Anaesthesia","Induction of anaesthesia","Pain","Migraine",  "General anaesthesia", "Analgesic therapy" ,"Respiratory symptom", "Cardiogenic shock","Toxicity to various agents", "Essential hypertension","Neuralgia","Anaesthesia procedure","Parkinson's disease","Asthenia","Neck pain","Product use in unapproved indication","Back pain","Complex regional pain syndrome","Dyskinesia", "Endometriosis", "Restlessness"), ]  
+data_recomposed = data_recomposed %>% distinct(age,sex,pt,prod_ai,event_dt,occr_country,  .keep_all = TRUE) 
+
+list_primary_esketamine = unique(esketamine$primaryid)  
+demo_react_unique_noesketamine = demo_react_unique[demo_react_unique$primaryid %notin% list_primary_esketamine, ] 
+
+data = vector()
+data = as.data.frame(data)
+list_pt = unique(data_recomposed$pt)
+
+for (i in 1:length(list_pt)) {
+  data[i,1] = length(which(data_recomposed$pt == list_pt[i]))
+  data[i,2] = length(unique(data_recomposed$caseid)) - length(which(data_recomposed$pt == list_pt[i]))
+  data[i,3] = length(which(demo_react_unique_noesketamine$pt == list_pt[i]))
+  data[i,4] = length(unique(demo_react_unique_noesketamine$caseid)) - length(which(demo_react_unique_noesketamine$pt == list_pt[i]))
+  data[i,5] = (data[i,1] * data[i,4]) / (data[i,2] * data[i,3])
+  data[i,6] = exp(log(data[i,5]) - (1.96*sqrt(1/data[i,1]+1/data[i,2]+1/data[i,3]+1/data[i,4])))
+  data[i,7] = exp(log(data[i,5]) + (1.96*sqrt(1/data[i,1]+1/data[i,2]+1/data[i,3]+1/data[i,4])))
+  data[i,8] = list_pt[i]
+}
+
+names(data) = c("a","b","c","d","ROR","LowerCI","HigherCI","pt")
+write.table(data, "ROR.txt", quote=T, row.names=F, sep="\t")
+
+
+
+drug2 = data_unique
+drug = drug2[drug2$primaryid %in% data_recomposed$primaryid, ]
+
+standardized_names = read.csv2("drugnames_standardized_v2.csv", header=T)
+standardized_names$drugname = toupper(standardized_names$drugname)
+standardized_names$Substance = toupper(standardized_names$Substance)
+
+drug_v2 = join(drug, standardized_names, type="left", by="drugname")
+drug_ps_ss_i = drug_v2[drug_v2$role_cod == "PS" | drug_v2$role_cod == "SS" | drug_v2$role_cod == "I", ]
+list_primaryID = unique(data_recomposed$primaryid)
+n_newCols = length(unique(drug_ps_ss_i$prod_ai))
+
+drug = drug_ps_ss_i
+
+add = matrix(0, nrow = nrow(data_recomposed), ncol = n_newCols)
+data_recomposed = cbind(data_recomposed, add)
+names(data_recomposed)[32:223] = unique(drug$prod_ai)
+
+for(i in 1:length(list_primaryID)) {
+  print(paste0("iteration n. ", i))
+  temp_primary = drug[drug$primaryid == list_primaryID[i], ] 
+  if( length( unique(temp_primary$primaryid) ) == 1 ) {
+    lista_farmaci = unique(temp_primary$prod_ai)
+    pos = which(names(data_recomposed) %in% lista_farmaci )
+    data_recomposed[data_recomposed$primaryid == list_primaryID[i], ][pos] = 1
+  } else {
+    list_caseID = unique(temp_primary$caseid)
+    for (j in 1:length(list_caseID) ) {
+      temp_case = temp_primary[temp_primary$caseid == list_caseID[j], ]
+      lista_farmaci = unique(temp_case$prod_ai)
+      pos = which(names(data_recomposed) %in% lista_farmaci )
+      data_recomposed[data_recomposed$primaryid == list_primaryID[i] &
+                        data_recomposed$caseid.x == list_caseID[j], ][pos] = 1
+    }
+  }
+  pos = 0
+}
