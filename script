@@ -128,3 +128,84 @@ for(i in 1:length(list_primaryID)) {
   }
   pos = 0
 }
+
+
+column_sum = apply(data_recomposed[, 32:223], 2, sum)
+max(column_sum)
+
+pos = which(column_sum != 0)
+pos = pos + 31
+a=data_recomposed[, pos]
+b = cbind(data_recomposed[, 1:31], a[,-1])
+c = cbind(data_recomposed[, 3], a[,-1])
+names(c)[1]="pt"
+data_recomposed_with_drugs = aggregate(.~pt,c,sum)
+
+#Analysis on concomitant drugs
+#The number of cases with both esketamine and each drug will be retrived from the ROR file and summed at the end for tables (not included in this script) 
+data_unique_esk = data_unique[data_unique$prod_ai %in% c("ESKETAMINE","ESKETAMINE HYDROCHLORIDE"), ]
+data_unique_no_esk = data_unique[data_unique$caseid %notin% esketamine_unique$caseid, ]
+
+library(dplyr)
+library(tidyr)
+data_unique = data_unique_no_esk %>% distinct(age,sex,pt,prod_ai,event_dt,occr_country,  .keep_all = TRUE)
+
+library(readxl)
+file_drugs = readxl::read_xlsx("file drugs.xlsx") #this excel file contains a list of concomitant drug for each esketamine-related significant AE, extracted from the object "data_recomposed_with_drugs"
+
+data_unique_ps_ss_i = data_unique[data_unique$role_cod == "PS" | data_unique$role_cod == "SS" | data_unique$role_cod == "I", ]
+
+results <- as.data.frame(matrix(NA, nrow = 100, ncol = 6))
+names(results) = c("AE", "drug", "n_B2", "n_O2", "temp_n_AB2", "temp_n_A2")
+all_results = results[0, ]
+pos = which(is.na(file_drugs$pt))  
+for(i in 1:(length(pos)-1) ) { 
+  print(paste0("Iteration n. ", i))
+  range = pos[i]:pos[i+1] 
+  chunk = file_drugs[range, ]  
+  selected_AE = unlist(unname(chunk[2, ]))  
+  selected_drugs = chunk[3:(nrow(chunk)-1), ] 
+  
+  no_AE = data_unique_ps_ss_i[data_unique_ps_ss_i$pt %notin% selected_AE, ]  
+  
+  for(j in 1:nrow(selected_drugs) ) { 
+    drugs_list = unlist(strsplit(selected_drugs$pt[j], ","))
+    no_AE_drugs = no_AE[no_AE$prod_ai %in% drugs_list, ]  
+    no_AE_empty = no_AE[no_AE$prod_ai == "", ]  
+    no_AE_drugs_empty = no_AE_empty[no_AE_empty$Substance %in% drugs_list, ]  
+    no_AE_drugs = rbind(no_AE_drugs, no_AE_drugs_empty)
+    
+    n_B2 = length(unique(no_AE_drugs$caseid))
+    no_AE_no_drugs = no_AE[no_AE$prod_ai %notin% drugs_list, ] 
+    no_AE_no_drugs_empty = no_AE[no_AE$prod_ai == "", ] 
+    no_AE_no_drugs_empty = no_AE_no_drugs_empty[no_AE_no_drugs_empty$Substance %notin% drugs_list, ]
+    no_AE_no_drugs = rbind(no_AE_no_drugs, no_AE_no_drugs_empty)
+    
+    n_O2 = length(unique(no_AE_no_drugs$caseid))
+    
+    esketamine = data_recomposed_with_drugs 
+    pos_drugs = which(names(esketamine) %in% drugs_list) 
+    if(length(pos_drugs) == 0) {print(paste0("Problem iter. ", i, "sub iter. ", j, "for drug ", selected_drugs$pt[j]))}
+    esketamine = esketamine[, c(1:2, pos_drugs)] 
+    
+    if(ncol(esketamine) > 3) { 
+      esketamine$sum = rowSums(esketamine[, 3:ncol(esketamine)])
+    } else {
+      esketamine$sum = esketamine[, 3] 
+    }
+    esketamine$sum = ifelse(esketamine$sum >= 1, 1, 0) 
+    
+    unique_cases = esketamine[esketamine$sum == 1, ]
+    temp_n_AB2 = length(unique(unique_cases$caseid)) #rows of esketamine with the drug
+    unique_cases_no_drug = esketamine[esketamine$sum == 0, ]
+    temp_n_A2 = length(unique(unique_cases_no_drug$caseid)) #rows of esketamine without the drug
+
+    n_B2; n_O2; temp_n_AB2; temp_n_A2
+    results[j,] = c(selected_AE, selected_drugs$pt[j], n_B2, n_O2, temp_n_AB2, temp_n_A2)
+    results = na.omit(results)
+  }
+  all_results = rbind(all_results, results)
+  results <- as.data.frame(matrix(NA, nrow = 100, ncol = 6))
+  names(results) = c("AE", "drug", "n_B2", "n_O2", "temp_n_AB2", "temp_n_A2")
+}
+View(all_results)
