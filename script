@@ -113,15 +113,15 @@ for(i in 1:length(list_primaryID)) {
   print(paste0("iteration n. ", i))
   temp_primary = drug[drug$primaryid == list_primaryID[i], ] 
   if( length( unique(temp_primary$primaryid) ) == 1 ) {
-    lista_farmaci = unique(temp_primary$prod_ai)
-    pos = which(names(data_recomposed) %in% lista_farmaci )
+    drug_list = unique(temp_primary$prod_ai)
+    pos = which(names(data_recomposed) %in% drug_list)
     data_recomposed[data_recomposed$primaryid == list_primaryID[i], ][pos] = 1
   } else {
     list_caseID = unique(temp_primary$caseid)
     for (j in 1:length(list_caseID) ) {
       temp_case = temp_primary[temp_primary$caseid == list_caseID[j], ]
-      lista_farmaci = unique(temp_case$prod_ai)
-      pos = which(names(data_recomposed) %in% lista_farmaci )
+      drug_list = unique(temp_case$prod_ai)
+      pos = which(names(data_recomposed) %in% drug_list )
       data_recomposed[data_recomposed$primaryid == list_primaryID[i] &
                         data_recomposed$caseid.x == list_caseID[j], ][pos] = 1
     }
