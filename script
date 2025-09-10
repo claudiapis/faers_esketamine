@@ -20,7 +20,7 @@ demo_drug_reac_indi = demo_drug_reac %>% left_join(indi, by=c("primaryid", "case
 demo_drug_reac_indi_reduced = demo_drug_reac_indi[,c("primaryid","caseid","pt","caseversion","event_dt","init_fda_dt","fda_dt","age","age_cod","age_grp","sex","wt","wt_cod","occp_cod","reporter_country","occr_country","drug_seq","role_cod","drugname","prod_ai","route","cum_dose_chr","cum_dose_unit","dechal","rechal","dose_amt","dose_unit","dose_form","dose_freq","indi_pt")]
 data_reduced_sorted  = demo_drug_reac_indi_reduced[order(-demo_drug_reac_indi_reduced$fda_dt,demo_drug_reac_indi_reduced$primaryid),]
 
-#The Diana dictionary available at https://osf.io/zqu89/files/osfstorage was used for drug name standardization
+#The Diana dictionary available at https://osf.io/zqu89/files/osfstorage was used for drug name standardization (PMID: 38175395)
 standardized_names = read.csv2("drugnames_standardized.csv", header=T)
 standardized_names$drugname = toupper(standardized_names$drugname)
 standardized_names$Substance = toupper(standardized_names$Substance)
