@@ -209,3 +209,24 @@ for(i in 1:(length(pos)-1) ) {
   names(results) = c("AE", "drug", "n_B2", "n_O2", "temp_n_AB2", "temp_n_A2")
 }
 View(all_results)
+
+#Sensitivity analysis
+venlafaxine = data_unique[data_unique$prod_ai %in% c("VENLAFAXINE","VENLAFAXINE HYDROCHLORIDE") | (data_unique$prod_ai %notin% c("VENLAFAXINE","VENLAFAXINE HYDROCHLORIDE") & data_unique$Substance %in% c("VENLAFAXINE")) | (data_unique$prod_ai %in% c("") & data_unique$Substance %in% c("VENLAFAXINE")), ]
+venlafaxine_v2 = venlafaxine %>% distinct(age,sex,pt,event_dt,occr_country,indi_pt,  .keep_all = TRUE) 
+list_venlafaxine =  unique(venlafaxine_v2$primaryid)
+demo_react_unique_noesketamine_venlafaxine = demo_react_unique_noesketamine[demo_react_unique_noesketamine$primaryid %in% list_venlafaxine, ]
+data = vector()
+data = as.data.frame(data)
+list_pt = unique(data_recomposed$pt)
+for (i in 1:length(list_pt)) {
+  data[i,1] = length(which(data_recomposed$pt == list_pt[i]))
+  data[i,2] = length(unique(data_recomposed$caseid)) - length(which(data_recomposed$pt == list_pt[i]))
+  data[i,3] = length(which(demo_react_unique_noesketamine_venlafaxine$pt == list_pt[i]))
+  data[i,4] = length(unique(demo_react_unique_noesketamine_venlafaxine$caseid)) - length(which(demo_react_unique_noesketamine_venlafaxine$pt == list_pt[i]))
+  data[i,5] = (data[i,1] * data[i,4]) / (data[i,2] * data[i,3])
+  data[i,6] = exp(log(data[i,5]) - (1.96*sqrt(1/data[i,1]+1/data[i,2]+1/data[i,3]+1/data[i,4])))
+  data[i,7] = exp(log(data[i,5]) + (1.96*sqrt(1/data[i,1]+1/data[i,2]+1/data[i,3]+1/data[i,4])))
+  data[i,8] = list_pt[i]
+}
+names(data) = c("a","b","c","d","ROR","LowerCI","HigherCI","pt")
+write.table(data, "ROR_esketamine_vs_venlafaxine.txt", row.names= F, quote = T)
